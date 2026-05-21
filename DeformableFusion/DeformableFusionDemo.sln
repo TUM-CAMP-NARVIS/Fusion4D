@@ -1,0 +1,63 @@
+Microsoft Visual Studio Solution File, Format Version 12.00
+# Visual Studio Version 16
+VisualStudioVersion = 16.0.29123.88
+MinimumVisualStudioVersion = 10.0.40219.1
+Project("{8BC9CEB8-8B4A-11D0-8D11-00A0C91BC942}") = "DeformableFusionDemo", "DeformableFusionDemo\DeformableFusionDemo.vcxproj", "{A8E4A443-3D22-4C9F-B7C0-4F7C3D0A4B77}"
+EndProject
+Project("{8BC9CEB8-8B4A-11D0-8D11-00A0C91BC942}") = "FastNonrigidMatching", "FastNonrigidMatching\FastNonrigidMatching.vcxproj", "{C3EE02AB-C76C-4179-8B2C-B37C3805ADA2}"
+EndProject
+Project("{8BC9CEB8-8B4A-11D0-8D11-00A0C91BC942}") = "NonRigidMatch", "NonRigidMatch\NonRigidMatch.vcxproj", "{135A0214-46E7-4FAD-B99E-760A98EDB4C6}"
+EndProject
+Project("{8BC9CEB8-8B4A-11D0-8D11-00A0C91BC942}") = "Utility", "Utility\Utility.vcxproj", "{9C286B03-3DEC-4A13-852C-9105A68400EF}"
+EndProject
+Project("{8BC9CEB8-8B4A-11D0-8D11-00A0C91BC942}") = "CSurface", "CSurface\CSurface.vcxproj", "{F279DFEE-F193-429B-95C0-50D69E5413AD}"
+EndProject
+Project("{8BC9CEB8-8B4A-11D0-8D11-00A0C91BC942}") = "Basics", "Basics\Basics.vcxproj", "{76F10C63-CA82-4047-A868-DC1C6C4A6F50}"
+EndProject
+Project("{8BC9CEB8-8B4A-11D0-8D11-00A0C91BC942}") = "CameraView", "CameraView\CameraView.vcxproj", "{9F141529-22BE-4B4D-A8F7-0F948AE7978B}"
+EndProject
+Project("{8BC9CEB8-8B4A-11D0-8D11-00A0C91BC942}") = "LibUtility", "..\McLib2\LibUtility\LibUtility.vcxproj", "{36ED74A5-0C0D-4F9C-A4C4-358CE4509232}"
+EndProject
+Global
+	GlobalSection(SolutionConfigurationPlatforms) = preSolution
+		Debug|x64 = Debug|x64
+		Release|x64 = Release|x64
+	EndGlobalSection
+	GlobalSection(ProjectConfigurationPlatforms) = postSolution
+		{A8E4A443-3D22-4C9F-B7C0-4F7C3D0A4B77}.Debug|x64.ActiveCfg = Debug|x64
+		{A8E4A443-3D22-4C9F-B7C0-4F7C3D0A4B77}.Debug|x64.Build.0 = Debug|x64
+		{A8E4A443-3D22-4C9F-B7C0-4F7C3D0A4B77}.Release|x64.ActiveCfg = Release|x64
+		{A8E4A443-3D22-4C9F-B7C0-4F7C3D0A4B77}.Release|x64.Build.0 = Release|x64
+		{C3EE02AB-C76C-4179-8B2C-B37C3805ADA2}.Debug|x64.ActiveCfg = Debug|x64
+		{C3EE02AB-C76C-4179-8B2C-B37C3805ADA2}.Debug|x64.Build.0 = Debug|x64
+		{C3EE02AB-C76C-4179-8B2C-B37C3805ADA2}.Release|x64.ActiveCfg = Release|x64
+		{C3EE02AB-C76C-4179-8B2C-B37C3805ADA2}.Release|x64.Build.0 = Release|x64
+		{135A0214-46E7-4FAD-B99E-760A98EDB4C6}.Debug|x64.ActiveCfg = Debug|x64
+		{135A0214-46E7-4FAD-B99E-760A98EDB4C6}.Debug|x64.Build.0 = Debug|x64
+		{135A0214-46E7-4FAD-B99E-760A98EDB4C6}.Release|x64.ActiveCfg = Release|x64
+		{135A0214-46E7-4FAD-B99E-760A98EDB4C6}.Release|x64.Build.0 = Release|x64
+		{9C286B03-3DEC-4A13-852C-9105A68400EF}.Debug|x64.ActiveCfg = Debug|x64
+		{9C286B03-3DEC-4A13-852C-9105A68400EF}.Debug|x64.Build.0 = Debug|x64
+		{9C286B03-3DEC-4A13-852C-9105A68400EF}.Release|x64.ActiveCfg = Release|x64
+		{9C286B03-3DEC-4A13-852C-9105A68400EF}.Release|x64.Build.0 = Release|x64
+		{F279DFEE-F193-429B-95C0-50D69E5413AD}.Debug|x64.ActiveCfg = Debug|x64
+		{F279DFEE-F193-429B-95C0-50D69E5413AD}.Debug|x64.Build.0 = Debug|x64
+		{F279DFEE-F193-429B-95C0-50D69E5413AD}.Release|x64.ActiveCfg = Release|x64
+		{F279DFEE-F193-429B-95C0-50D69E5413AD}.Release|x64.Build.0 = Release|x64
+		{76F10C63-CA82-4047-A868-DC1C6C4A6F50}.Debug|x64.ActiveCfg = Debug|x64
+		{76F10C63-CA82-4047-A868-DC1C6C4A6F50}.Debug|x64.Build.0 = Debug|x64
+		{76F10C63-CA82-4047-A868-DC1C6C4A6F50}.Release|x64.ActiveCfg = Release|x64
+		{76F10C63-CA82-4047-A868-DC1C6C4A6F50}.Release|x64.Build.0 = Release|x64
+		{9F141529-22BE-4B4D-A8F7-0F948AE7978B}.Debug|x64.ActiveCfg = Debug|x64
+		{9F141529-22BE-4B4D-A8F7-0F948AE7978B}.Debug|x64.Build.0 = Debug|x64
+		{9F141529-22BE-4B4D-A8F7-0F948AE7978B}.Release|x64.ActiveCfg = Release|x64
+		{9F141529-22BE-4B4D-A8F7-0F948AE7978B}.Release|x64.Build.0 = Release|x64
+		{36ED74A5-0C0D-4F9C-A4C4-358CE4509232}.Debug|x64.ActiveCfg = Debug|x64
+		{36ED74A5-0C0D-4F9C-A4C4-358CE4509232}.Debug|x64.Build.0 = Debug|x64
+		{36ED74A5-0C0D-4F9C-A4C4-358CE4509232}.Release|x64.ActiveCfg = Release|x64
+		{36ED74A5-0C0D-4F9C-A4C4-358CE4509232}.Release|x64.Build.0 = Release|x64
+	EndGlobalSection
+	GlobalSection(SolutionProperties) = preSolution
+		HideSolutionNode = FALSE
+	EndGlobalSection
+EndGlobal
