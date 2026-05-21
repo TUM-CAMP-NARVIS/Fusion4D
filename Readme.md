@@ -1,7 +1,31 @@
 # Fusion4D Linux Port
 This is an unofficial Linux port of the Fusion4D paper implementation you can find [here](https://github.com/microsoft/3DTelecommunications). 
 
-This builds the Linux library and produces a demo executable that allows you to do non-rigid reconstruction from RGBD sequences on Linux.:
+This builds the Linux library and produces a demo executable that allows you to do non-rigid reconstruction from RGBD sequences on Linux.
+
+## Results on VolumeDeform dataset
+
+<table>
+<tr>
+<td align="center">Hoodie</td>
+<td align="center">Upperbody</td>
+<td align="center">Umbrella</td>
+</tr>
+<tr>
+<td align="center">
+  <img src="https://github.com/user-attachments/assets/4b899681-6612-4e7e-bd62-b946d18733ce" width="300">
+</td>
+
+<td align="center">
+  <img src="https://github.com/user-attachments/assets/85cba804-ac68-4b36-98e2-d8ce5c3ef3e6" width="300">
+</td>
+
+<td align="center">
+  <img src="https://github.com/user-attachments/assets/4575fc28-c764-4f57-b877-421f53e14f5a" width="300">
+</td>
+</tr>
+
+</table>
 
 ## 1. Install System Packages
 
@@ -109,3 +133,4 @@ outputs to `../Dataset/outputs/fusion4d`.
 ## References
 - [Original Fusion4D implementation](https://github.com/microsoft/3DTelecommunications)
 - [Fusion4D paper](https://www.microsoft.com/en-us/research/wp-content/uploads/2016/11/a114-dou.pdf)
+  [VolumeDeform paper](https://link.springer.com/chapter/10.1007/978-3-319-46484-8_22)
