@@ -245,6 +245,8 @@ get_target_property(FAST_MATCH_OBJECTS FastNonrigidMatching SOURCES)
 
 add_executable(DeformableFusionDemo
   DeformableFusion/DeformableFusionDemo/DeformableFusionDemo.cpp
+  DeformableFusion/DeformableFusionDemo/Live3DViewer.cpp
+  DeformableFusion/DeformableFusionDemo/SurfacePreview.cpp
   DeformableFusion/FusionDemo-MultiView/FusionConfig.cpp
   DeformableFusion/FusionDemo-MultiView/GlobalDataStatic.cpp
   ${FAST_MATCH_OBJECTS}
