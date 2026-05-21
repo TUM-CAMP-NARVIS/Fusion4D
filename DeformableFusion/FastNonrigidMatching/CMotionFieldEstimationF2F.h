@@ -82,6 +82,11 @@ public:
 	float ed_cubes_res() { return problem.ed_cubes_res(); }
 	cudaArray* cu_3dArr_ndIds() { return problem.cu_3dArr_ndIds(); }
 	RigidTransformCuda* dev_rigid_transf() { return problem.dev_rigid_transf(); }
+	void read_current_surface(CSurface<float>& surface)
+	{
+		vol_fusion.readout_surface_mesh(vol_fusion.dev_vts(), vol_fusion.vts_num_gpu(), vol_fusion.vt_dim(),
+			vol_fusion.dev_triangles(), vol_fusion.tris_num_gpu(), surface);
+	}
 
 	//ed nodes data
 	EDNodesParasGPU ed_nodes_for_init()
@@ -107,28 +112,33 @@ public:
 
 	void set_up_1st_frame(cudaArray *cu_3dArr_depth,
 						BoundingBox3D bbox,
-						char const* tmp_dir, int frmIdx);
+						char const* tmp_dir, int frmIdx,
+						bool bWriteDebugOutputs = true);
 
 	void add_a_frame(cudaArray *cu_3dArr_depth,
 		char const* tmp_dir = NULL,
 		int frmIdx = 0,
-		bool bInitBackground = false);
+		bool bInitBackground = false,
+		bool bWriteDebugOutputs = true);
 
 	void add_a_frame(cudaArray *cu_3dArr_depth,
 		char* dev_buf_init_ed_nodes, //results for second gpu to use
 		int buf_size,
 		char const* tmp_dir = NULL,
 		int frmIdx = 0,
-		bool bInitBackground = false);
+		bool bInitBackground = false,
+		bool bWriteDebugOutputs = true);
 
 	void set_up_1st_frame(std::vector<cv::Mat> &depthImgs,
 						  BoundingBox3D bbox,
-						  char const* tmp_dir, int frmIdx);
+						  char const* tmp_dir, int frmIdx,
+						  bool bWriteDebugOutputs = true);
 
 	void add_a_frame(std::vector<cv::Mat> &depthImgs,
 					char const* tmp_dir = NULL,
 					int frmIdx = 0,
-					bool bInitBackground = false);
+					bool bInitBackground = false,
+					bool bWriteDebugOutputs = true);
 
 
 	void load_2d_matches_batch(char const* file_basename, int views_num)

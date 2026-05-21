@@ -30,16 +30,18 @@ const int FRAME_TO_DEBUG = -1;
 void CMotionFieldEstimationF2F::
 set_up_1st_frame(std::vector<cv::Mat> &depthImgs,
 			BoundingBox3D bbox,
-			char const* tmp_dir, int frmIdx)
+			char const* tmp_dir, int frmIdx,
+			bool bWriteDebugOutputs)
 {
 	vol_fusion.feed_depth_textures(depthImgs);
-	set_up_1st_frame(NULL, bbox, tmp_dir, frmIdx);
+	set_up_1st_frame(NULL, bbox, tmp_dir, frmIdx, bWriteDebugOutputs);
 }
 
 void CMotionFieldEstimationF2F::
 set_up_1st_frame(cudaArray *cu_3dArr_depth,
 				BoundingBox3D bbox,
-				char const* tmp_dir, int frmIdx)
+				char const* tmp_dir, int frmIdx,
+				bool bWriteDebugOutputs)
 {
 	char name[500];
 
@@ -53,7 +55,7 @@ set_up_1st_frame(cudaArray *cu_3dArr_depth,
 	vol_fusion.compute_mipmap();
 	vol_fusion.coarse_cube_prune_f2f(vol_fusion.dev_volume(), NULL, cuda::gpu_size_data(), 0);
 
-	if (tmp_dir != NULL)
+	if (tmp_dir != NULL && bWriteDebugOutputs)
 	{
 		VolumeTwoLevelHierachy volume;
 		vol_fusion.readout_volume_data(volume, false);
@@ -93,13 +95,17 @@ set_up_1st_frame(cudaArray *cu_3dArr_depth,
 		vol_fusion.readout_surface(accu_surface);
 		sprintf(name, "%s/accu_surface_%04d.bin", tmp_dir, frmIdx);
 		accu_surface.writeToFileBIN(name);
-		sprintf(name, "%s/accu_surface_t_%04d.bin", tmp_dir, frmIdx);
-		accu_surface.writeToFileBIN(name);
 
-		CPointCloud<float> pcd;
-		vol_fusion.readout_point_cloud(pcd);
-		sprintf(name, "%s/pcd_%04d.txt", tmp_dir, frmIdx);
-		pcd.writeToFileASCII(name);
+		if (bWriteDebugOutputs)
+		{
+			sprintf(name, "%s/accu_surface_t_%04d.bin", tmp_dir, frmIdx);
+			accu_surface.writeToFileBIN(name);
+
+			CPointCloud<float> pcd;
+			vol_fusion.readout_point_cloud(pcd);
+			sprintf(name, "%s/pcd_%04d.txt", tmp_dir, frmIdx);
+			pcd.writeToFileASCII(name);
+		}
 	}
 
 	frm_count = 1;
@@ -109,17 +115,19 @@ void CMotionFieldEstimationF2F::
 add_a_frame(std::vector<cv::Mat> &depthImgs,
 			char const* tmp_dir,
 			int frmIdx,
-			bool bInitBackground)
+			bool bInitBackground,
+			bool bWriteDebugOutputs)
 {
 	vol_fusion.feed_depth_textures(depthImgs);
-	add_a_frame(NULL, tmp_dir, frmIdx, bInitBackground);
+	add_a_frame(NULL, tmp_dir, frmIdx, bInitBackground, bWriteDebugOutputs);
 }
 
 void CMotionFieldEstimationF2F::
 add_a_frame(cudaArray *cu_3dArr_depth,
 			char const* tmp_dir,
 			int frmIdx,
-			bool bInitBackground)
+			bool bInitBackground,
+			bool bWriteDebugOutputs)
 {
 	// 1. generate the deformation graph, and deform the reference frame to the next frame
 	// 2. accumulate the surface
@@ -174,7 +182,7 @@ add_a_frame(cudaArray *cu_3dArr_depth,
 	problem.init_ed_graph_to_identy();
 
 	DeformGraphHierachy graph_cur;
-	if (tmp_dir != NULL)
+	if (tmp_dir != NULL && bWriteDebugOutputs)
 	{
 		problem.graph_cuda.readout_DeformGraph_all_levels(graph_cur);
 		sprintf(name, "%s/graph_in_%04d.txt", tmp_dir, frmIdx);
@@ -207,7 +215,7 @@ add_a_frame(cudaArray *cu_3dArr_depth,
 	problem.graph_cuda.transform_surface();
 	vol_fusion.dev_copy_ed_nodes(problem.graph_cuda.dev_ed_nodes(), problem.graph_cuda.ed_nodes_num_gpu(), problem.graph_cuda.dev_rigid_transf());
 	
-	if (tmp_dir != NULL)
+	if (tmp_dir != NULL && bWriteDebugOutputs)
 	{
 		problem.graph_cuda.readout_DeformGraph_all_levels(graph_cur);
 		sprintf(name, "%s/graph_%04d.txt", tmp_dir, frmIdx);
@@ -269,7 +277,7 @@ add_a_frame(cudaArray *cu_3dArr_depth,
 	int const* dev_ngn_indices = problem.graph_cuda.dev_vts_ngn_indices();
 	float const* dev_ngn_weights = problem.graph_cuda.dev_vts_ngn_weights();
 
-	if (tmp_dir != NULL)
+	if (tmp_dir != NULL && bWriteDebugOutputs)
 	{
 		CSurface<float> accu_surface_t;
 
@@ -302,12 +310,15 @@ add_a_frame(cudaArray *cu_3dArr_depth,
 
 	if (tmp_dir != NULL)
 	{
-		CSurface<float> accu_surface_t;
-		vol_fusion.readout_surface_mesh(vol_fusion.dev_vts_t(), vol_fusion.vts_t_num_gpu(), vol_fusion.vt_dim(),
-			vol_fusion.dev_triangles(), vol_fusion.tris_num_gpu(),
-			accu_surface_t);
-		sprintf(name, "%s/accu_surface_t2_%04d.bin", tmp_dir, frmIdx);
-		accu_surface_t.writeToFileBIN(name);
+		if (bWriteDebugOutputs)
+		{
+			CSurface<float> accu_surface_t;
+			vol_fusion.readout_surface_mesh(vol_fusion.dev_vts_t(), vol_fusion.vts_t_num_gpu(), vol_fusion.vt_dim(),
+				vol_fusion.dev_triangles(), vol_fusion.tris_num_gpu(),
+				accu_surface_t);
+			sprintf(name, "%s/accu_surface_t2_%04d.bin", tmp_dir, frmIdx);
+			accu_surface_t.writeToFileBIN(name);
+		}
 
 		CSurface<float> accu_surface;
 		vol_fusion.readout_surface_mesh(vol_fusion.dev_vts(), vol_fusion.vts_num_gpu(), vol_fusion.vt_dim(),
@@ -316,12 +327,15 @@ add_a_frame(cudaArray *cu_3dArr_depth,
 		sprintf(name, "%s/accu_surface_%04d.bin", tmp_dir, frmIdx);
 		accu_surface.writeToFileBIN(name);
 
-		CSurface<float> surface_cur;
-		vol_fusion.readout_surface_mesh(vol_fusion.dev_vts_cur(), vol_fusion.vts_cur_num_gpu(), vol_fusion.vt_dim(),
-			vol_fusion.dev_triangles(), vol_fusion.tris_num_gpu(),
-			surface_cur);
-		sprintf(name, "%s/surface_cur_%04d.bin", tmp_dir, frmIdx);
-		surface_cur.writeToFileBIN(name);
+		if (bWriteDebugOutputs)
+		{
+			CSurface<float> surface_cur;
+			vol_fusion.readout_surface_mesh(vol_fusion.dev_vts_cur(), vol_fusion.vts_cur_num_gpu(), vol_fusion.vt_dim(),
+				vol_fusion.dev_triangles(), vol_fusion.tris_num_gpu(),
+				surface_cur);
+			sprintf(name, "%s/surface_cur_%04d.bin", tmp_dir, frmIdx);
+			surface_cur.writeToFileBIN(name);
+		}
 	}
 
 	frm_count++;
@@ -333,9 +347,10 @@ add_a_frame(cudaArray *cu_3dArr_depth,
 	int buf_size,
 	char const* tmp_dir,
 	int frmIdx,
-	bool bInitBackground)
+	bool bInitBackground,
+	bool bWriteDebugOutputs)
 {
-	add_a_frame(cu_3dArr_depth, tmp_dir, frmIdx, bInitBackground);
+	add_a_frame(cu_3dArr_depth, tmp_dir, frmIdx, bInitBackground, bWriteDebugOutputs);
 	EDNodesParasGPU ed_nodes_init = ed_nodes_for_init();
 	pack_EDNodesParasGPU_to_dev_buf(ed_nodes_init, dev_buf_init_ed_nodes, buf_size);
 }

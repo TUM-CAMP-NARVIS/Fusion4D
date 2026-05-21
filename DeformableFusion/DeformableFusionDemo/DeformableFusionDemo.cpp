@@ -57,6 +57,7 @@ struct Options
 	int previewEvery = 1;
 	float previewMaxEdge = 80.0f;
 	bool viewer3d = false;
+	bool writeDebugOutputs = false;
 	int dumpSurfaceEvery = 0;
 	std::string dumpSurfaceFormat = "ply";
 	BoundingBox3D bbox = BoundingBox3D(-100, 100, -200, 0, -100, 100);
@@ -108,6 +109,25 @@ struct Live3DViewer
 };
 
 Live3DViewer g_viewer3d;
+
+PreviewSurface make_preview_surface(const CSurface<float>& surface)
+{
+	PreviewSurface preview;
+	preview.vtDim = surface.vtDim;
+	preview.vtNum = surface.vtNum;
+	preview.triNum = surface.triNum;
+	const size_t valueCount = static_cast<size_t>(preview.vtNum) * static_cast<size_t>(preview.vtDim);
+	if (surface.vtData && valueCount > 0)
+	{
+		preview.data.assign(surface.vtData, surface.vtData + valueCount);
+	}
+	const size_t triangleValueCount = static_cast<size_t>(preview.triNum) * 3;
+	if (surface.triangles && triangleValueCount > 0)
+	{
+		preview.triangles.assign(surface.triangles, surface.triangles + triangleValueCount);
+	}
+	return preview;
+}
 
 bool has_image_extension(const fs::path& path)
 {
@@ -484,6 +504,40 @@ void dump_surface_if_requested(const fs::path& surfacePath, const fs::path& outp
 	}
 }
 
+void dump_surface_if_requested(const PreviewSurface& sourceSurface, const fs::path& outputDir, int frame, const cv::Mat* colorImage, const Options& opt, int width, int height)
+{
+	if (opt.dumpSurfaceEvery <= 0 || frame % opt.dumpSurfaceEvery != 0) return;
+
+	PreviewSurface surface = sourceSurface;
+	synthesize_image_space_triangles(surface, opt, width, height);
+
+	fs::create_directories(outputDir);
+	char filename[128];
+	const std::string format = lower_string(opt.dumpSurfaceFormat);
+	std::snprintf(filename, sizeof(filename), "f2f_surface_%04d.%s", frame, format.c_str());
+	const fs::path outPath = outputDir / filename;
+
+	bool ok = false;
+	if (format == "ply")
+	{
+		ok = write_surface_ply(outPath, surface, colorImage, opt, width, height);
+	}
+	else if (format == "obj")
+	{
+		ok = write_surface_obj(outPath, surface, colorImage, opt, width, height);
+	}
+	else
+	{
+		std::cerr << "Unsupported --dump-surface-format: " << opt.dumpSurfaceFormat << "\n";
+		return;
+	}
+
+	if (ok)
+	{
+		std::cout << "Dumped " << outPath << " (" << surface.vtNum << " vertices, " << surface.triNum << " triangles)\n";
+	}
+}
+
 void draw_camera_rasterized_mesh(
 	cv::Mat& canvas,
 	const std::vector<PreviewProjectedPoint>& points,
@@ -641,6 +695,56 @@ bool show_live_preview(const fs::path& surfacePath, const cv::Mat* colorImage, c
 	draw_surface_projection(canvas, surface, 990, 60, 260, 0, 2, "XZ");
 	draw_surface_projection(canvas, surface, 700, 350, 260, 2, 1, "ZY");
 	cv::putText(canvas, surfacePath.filename().string() + "  vertices=" + std::to_string(surface.vtNum) +
+		" triangles=" + std::to_string(surface.triNum) + " projected=" + std::to_string(projected.size()),
+		cv::Point(20, 35), cv::FONT_HERSHEY_SIMPLEX, 0.75, cv::Scalar(245, 245, 245), 1, cv::LINE_AA);
+	char boundsText[256];
+	std::snprintf(boundsText, sizeof(boundsText), "surface cm x=[%.1f,%.1f] y=[%.1f,%.1f] z=[%.1f,%.1f]  input bbox x=[%.0f,%.0f] y=[%.0f,%.0f] z=[%.0f,%.0f]",
+		minv[0], maxv[0], minv[1], maxv[1], minv[2], maxv[2],
+		opt.bbox.x_s, opt.bbox.x_e, opt.bbox.y_s, opt.bbox.y_e, opt.bbox.z_s, opt.bbox.z_e);
+	cv::putText(canvas, boundsText, cv::Point(20, 650), cv::FONT_HERSHEY_SIMPLEX, 0.55, cv::Scalar(210, 210, 210), 1, cv::LINE_AA);
+	cv::putText(canvas, "Dim RGB background shows camera crop; mesh edge filter is preview-only.",
+		cv::Point(20, 675), cv::FONT_HERSHEY_SIMPLEX, 0.55, cv::Scalar(210, 210, 210), 1, cv::LINE_AA);
+	cv::putText(canvas, "Esc/Q: stop preview and finish process",
+		cv::Point(20, 875), cv::FONT_HERSHEY_SIMPLEX, 0.55, cv::Scalar(180, 180, 180), 1, cv::LINE_AA);
+	cv::imshow(windowName, canvas);
+
+	const int key = cv::waitKey(1);
+	return key != 27 && key != 'q' && key != 'Q';
+}
+
+bool show_live_preview(const PreviewSurface& sourceSurface, const std::string& surfaceLabel, const cv::Mat* colorImage, const Options& opt, int width, int height)
+{
+	PreviewSurface surface = sourceSurface;
+	synthesize_image_space_triangles(surface, opt, width, height);
+
+	float minv[3] = { std::numeric_limits<float>::max(), std::numeric_limits<float>::max(), std::numeric_limits<float>::max() };
+	float maxv[3] = { std::numeric_limits<float>::lowest(), std::numeric_limits<float>::lowest(), std::numeric_limits<float>::lowest() };
+	for (int i = 0; i < surface.vtNum; ++i)
+	{
+		const float* p = &surface.data[static_cast<size_t>(i) * surface.vtDim];
+		for (int a = 0; a < 3; ++a)
+		{
+			minv[a] = std::min(minv[a], p[a]);
+			maxv[a] = std::max(maxv[a], p[a]);
+		}
+	}
+
+	static bool windowCreated = false;
+	const char* windowName = "DeformableFusionDemo live F2F preview";
+	if (!windowCreated)
+	{
+		cv::namedWindow(windowName, cv::WINDOW_NORMAL);
+		cv::resizeWindow(windowName, 1280, 900);
+		windowCreated = true;
+	}
+
+	const auto projected = project_preview_points(surface, colorImage, opt, width, height);
+	cv::Mat canvas(900, 1280, CV_8UC3, cv::Scalar(18, 18, 18));
+	draw_camera_rasterized_mesh(canvas, projected, colorImage, 20, 60, width, height, opt.previewMaxEdge);
+	draw_surface_projection(canvas, surface, 700, 60, 260, 0, 1, "XY");
+	draw_surface_projection(canvas, surface, 990, 60, 260, 0, 2, "XZ");
+	draw_surface_projection(canvas, surface, 700, 350, 260, 2, 1, "ZY");
+	cv::putText(canvas, surfaceLabel + "  vertices=" + std::to_string(surface.vtNum) +
 		" triangles=" + std::to_string(surface.triNum) + " projected=" + std::to_string(projected.size()),
 		cv::Point(20, 35), cv::FONT_HERSHEY_SIMPLEX, 0.75, cv::Scalar(245, 245, 245), 1, cv::LINE_AA);
 	char boundsText[256];
@@ -904,12 +1008,23 @@ void initialize_live_3d_viewer(int argc, char** argv)
 	g_viewer3d.initialized = true;
 }
 
+void update_live_3d_viewer(const PreviewSurface& sourceSurface, const cv::Mat* colorImage, const Options& opt, int width, int height, int frame);
+
 void update_live_3d_viewer(const fs::path& surfacePath, const cv::Mat* colorImage, const Options& opt, int width, int height, int frame)
 {
 	if (!opt.viewer3d || !g_viewer3d.initialized || g_viewer3d.closed) return;
 
 	PreviewSurface surface;
 	if (!read_preview_surface(surfacePath, surface)) return;
+	synthesize_image_space_triangles(surface, opt, width, height);
+	update_live_3d_viewer(surface, colorImage, opt, width, height, frame);
+}
+
+void update_live_3d_viewer(const PreviewSurface& sourceSurface, const cv::Mat* colorImage, const Options& opt, int width, int height, int frame)
+{
+	if (!opt.viewer3d || !g_viewer3d.initialized || g_viewer3d.closed) return;
+
+	PreviewSurface surface = sourceSurface;
 	synthesize_image_space_triangles(surface, opt, width, height);
 
 	std::vector<float> vertices;
@@ -1142,6 +1257,7 @@ void print_usage()
 		<< "  --preview-every N        Preview every N frames. Default: 1.\n"
 		<< "  --preview-max-edge PX    Max rasterized preview triangle edge in pixels. Default: 80.\n"
 		<< "  --viewer3d               Show an interactive live OpenGL 3D mesh viewer.\n"
+		<< "  --write-debug-outputs    Write solver intermediate .bin/.txt/.png debug outputs.\n"
 		<< "  --dump-surface-every N   Export F2F surface every N frames. Default: disabled.\n"
 		<< "  --dump-surface-format F  Export format: ply or obj. Default: ply.\n"
 		<< "  --bbox xmin,xmax,ymin,ymax,zmin,zmax  Volume bounds in cm.\n";
@@ -1182,6 +1298,7 @@ Options parse_options(int argc, char** argv)
 		else if (arg == "--preview-every") opt.previewEvery = std::max(1, std::stoi(require_value(argc, argv, i)));
 		else if (arg == "--preview-max-edge") opt.previewMaxEdge = std::max(1.0f, static_cast<float>(std::stod(require_value(argc, argv, i))));
 		else if (arg == "--viewer3d") opt.viewer3d = true;
+		else if (arg == "--write-debug-outputs") opt.writeDebugOutputs = true;
 		else if (arg == "--dump-surface-every") opt.dumpSurfaceEvery = std::max(0, std::stoi(require_value(argc, argv, i)));
 		else if (arg == "--dump-surface-format") opt.dumpSurfaceFormat = lower_string(require_value(argc, argv, i));
 		else if (arg == "--bbox")
@@ -1349,31 +1466,34 @@ int main(int argc, char** argv)
 		const fs::path fusion4dOutputDir = opt.outputDir / "fusion4d";
 		const fs::path f2fOutputDir = opt.outputDir / "f2f";
 		const fs::path surfaceDumpDir = opt.outputDir / "surface_dumps";
-		fs::create_directories(fusion4dOutputDir);
-		fs::create_directories(f2fOutputDir);
+		const bool needsF2FSurfaceReadback = opt.preview || opt.viewer3d || opt.dumpSurfaceEvery > 0;
+		if (opt.writeDebugOutputs) fs::create_directories(fusion4dOutputDir);
+		if (opt.writeDebugOutputs) fs::create_directories(f2fOutputDir);
 		const std::string fusion4dOut = fusion4dOutputDir.string();
 		const std::string f2fOut = f2fOutputDir.string();
-		const char* fusion4dOutDir = fusion4dOut.empty() ? nullptr : fusion4dOut.c_str();
-		const char* f2fOutDir = f2fOut.empty() ? nullptr : f2fOut.c_str();
+		const char* fusion4dOutDir = opt.writeDebugOutputs && !fusion4dOut.empty() ? fusion4dOut.c_str() : nullptr;
+		const char* f2fOutDir = opt.writeDebugOutputs && !f2fOut.empty() ? f2fOut.c_str() : nullptr;
 
 		std::cout << "Processing " << frameCount << " frame(s), " << opt.cameraCount
 			<< " camera(s), " << depthWidth << "x" << depthHeight << ", GPU " << opt.gpu << "\n";
-		std::cout << "F2F outputs: " << f2fOutputDir << "\n";
-		std::cout << "Fusion4D outputs: " << fusion4dOutputDir << "\n";
+		if (f2fOutDir) std::cout << "F2F outputs: " << f2fOutputDir << "\n";
+		if (fusion4dOutDir) std::cout << "Fusion4D outputs: " << fusion4dOutputDir << "\n";
 
 		std::vector<cv::Mat> colorImages;
 		if (hasColor) colorImages = feed_optional_color(fusion4d, f2f, colorFiles, 0, opt.cameraCount, depthWidth, depthHeight);
 		fusion4d.set_up_1st_frame(firstDepth, opt.bbox, fusion4dOutDir, 0);
-		f2f.set_up_1st_frame(firstDepth, opt.bbox, f2fOutDir, 0);
+		f2f.set_up_1st_frame(firstDepth, opt.bbox, f2fOutDir, 0, opt.writeDebugOutputs);
 		{
 			const cv::Mat* previewColor = colorImages.empty() ? nullptr : &colorImages.front();
-			dump_surface_if_requested(f2fOutputDir / "accu_surface_0000.bin", surfaceDumpDir, 0, previewColor, opt, depthWidth, depthHeight);
-			update_live_3d_viewer(f2fOutputDir / "accu_surface_0000.bin", previewColor, opt, depthWidth, depthHeight, 0);
-		}
-		if (opt.preview)
-		{
-			const cv::Mat* previewColor = colorImages.empty() ? nullptr : &colorImages.front();
-			if (!show_live_preview(f2fOutputDir / "accu_surface_0000.bin", previewColor, opt, depthWidth, depthHeight)) return 0;
+			if (needsF2FSurfaceReadback)
+			{
+				CSurface<float> currentSurface;
+				f2f.read_current_surface(currentSurface);
+				const PreviewSurface previewSurface = make_preview_surface(currentSurface);
+				dump_surface_if_requested(previewSurface, surfaceDumpDir, 0, previewColor, opt, depthWidth, depthHeight);
+				update_live_3d_viewer(previewSurface, previewColor, opt, depthWidth, depthHeight, 0);
+				if (opt.preview && !show_live_preview(previewSurface, "accu_surface_0000", previewColor, opt, depthWidth, depthHeight)) return 0;
+			}
 		}
 
 		for (int frame = 1; frame < frameCount; ++frame)
@@ -1382,23 +1502,32 @@ int main(int argc, char** argv)
 			if (hasColor) colorImages = feed_optional_color(fusion4d, f2f, colorFiles, frame, opt.cameraCount, depthWidth, depthHeight);
 
 			std::cout << "Frame " << frame << "/" << (frameCount - 1) << "\n";
-			f2f.add_a_frame(depths, f2fOutDir, frame, false);
+			f2f.add_a_frame(depths, f2fOutDir, frame, false, opt.writeDebugOutputs);
 			EDNodesParasGPU edInit = f2f.ed_nodes_for_init();
-			char surfaceFilename[64];
-			std::snprintf(surfaceFilename, sizeof(surfaceFilename), "accu_surface_%04d.bin", frame);
 			const cv::Mat* previewColor = colorImages.empty() ? nullptr : &colorImages.front();
-			dump_surface_if_requested(f2fOutputDir / surfaceFilename, surfaceDumpDir, frame, previewColor, opt, depthWidth, depthHeight);
-			update_live_3d_viewer(f2fOutputDir / surfaceFilename, previewColor, opt, depthWidth, depthHeight, frame);
-			update_live_3d_graph(edInit, opt);
-			if (opt.preview && frame % opt.previewEvery == 0)
+			if (needsF2FSurfaceReadback)
 			{
-				if (!show_live_preview(f2fOutputDir / surfaceFilename, previewColor, opt, depthWidth, depthHeight)) return 0;
+				CSurface<float> currentSurface;
+				f2f.read_current_surface(currentSurface);
+				const PreviewSurface previewSurface = make_preview_surface(currentSurface);
+				dump_surface_if_requested(previewSurface, surfaceDumpDir, frame, previewColor, opt, depthWidth, depthHeight);
+				update_live_3d_viewer(previewSurface, previewColor, opt, depthWidth, depthHeight, frame);
+				if (opt.preview && frame % opt.previewEvery == 0)
+				{
+					char surfaceLabel[64];
+					std::snprintf(surfaceLabel, sizeof(surfaceLabel), "accu_surface_%04d", frame);
+					if (!show_live_preview(previewSurface, surfaceLabel, previewColor, opt, depthWidth, depthHeight)) return 0;
+				}
 			}
+			update_live_3d_graph(edInit, opt);
 			fusion4d.add_a_frame(depths, &edInit, fusion4dOutDir, frame, false);
 			cudaDeviceSynchronize();
 		}
 
-		std::cout << "Done. Debug/surface outputs written to " << opt.outputDir << "\n";
+		if (f2fOutDir || fusion4dOutDir || opt.dumpSurfaceEvery > 0)
+			std::cout << "Done. Debug/surface outputs written to " << opt.outputDir << "\n";
+		else
+			std::cout << "Done. Debug/surface file IO disabled; use --write-debug-outputs to dump intermediates.\n";
 		return 0;
 	}
 	catch (const std::exception& ex)

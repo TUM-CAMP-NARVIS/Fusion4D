@@ -378,12 +378,9 @@ add_a_frame(cudaArray* cu_3dArr_depth,
 	vol_fusion.marching_cubes_vMesh(vol_fusion.dev_volume_cur(), vol_fusion.dev_vts_t(), vol_fusion.vts_t_num_gpu(), vol_fusion.vt_dim(),
 		vol_fusion.dev_triangles(), vol_fusion.tris_num_gpu(), iso_surface_level, resoFactor);
 
-	size_t free_mem, total_mem;
-	cudaMemGetInfo(&free_mem, &total_mem);
-
-	const int inputTriangles = vol_fusion.tris_num_gpu().sync_read();
-
-	const int inputVertices = vol_fusion.vts_t_num_gpu().sync_read();
+	const bool logMeshStats = LOGGER()->check_verbosity(Logger::Debug);
+	const int inputTriangles = logMeshStats ? vol_fusion.tris_num_gpu().sync_read() : 0;
+	const int inputVertices = logMeshStats ? vol_fusion.vts_t_num_gpu().sync_read() : 0;
 
 	//// Post-process geometry.
 	if(GlobalDataStatic::HighQualityFrameNumber != frmIdx)
@@ -391,11 +388,13 @@ add_a_frame(cudaArray* cu_3dArr_depth,
 		vol_fusion.simplifyTriangles(FUSION_USE_QUAD);		
 	}
 
-	const int outputTriangles = vol_fusion.tris_num_gpu().sync_read();
-	const int outputVertices = vol_fusion.vts_t_num_gpu().sync_read();
-
-	LOGGER()->debug("%d Triangles: %d => %d", frmIdx,  inputTriangles, outputTriangles);
-	LOGGER()->debug("Vertices: %d => %d", inputVertices, outputVertices);
+	if (logMeshStats)
+	{
+		const int outputTriangles = vol_fusion.tris_num_gpu().sync_read();
+		const int outputVertices = vol_fusion.vts_t_num_gpu().sync_read();
+		LOGGER()->debug("%d Triangles: %d => %d", frmIdx, inputTriangles, outputTriangles);
+		LOGGER()->debug("Vertices: %d => %d", inputVertices, outputVertices);
+	}
 
 	//run the half-float conversion into mesh_gpu
 	vol_fusion.convert_to_half_floats(vol_fusion.dev_vts_t(), vol_fusion.get_mesh_gpu(), vol_fusion.vts_t_num_gpu().dev_ptr, vol_fusion.vts_t_num_gpu().max_size);
