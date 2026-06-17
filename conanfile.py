@@ -2,12 +2,13 @@ from conan import ConanFile
 from conan.errors import ConanInvalidConfiguration
 from conan.tools.build import check_min_cppstd
 from conan.tools.cmake import CMake, CMakeDeps, CMakeToolchain, cmake_layout
+from conan.tools.files import copy
 
 
 class Fusion4DConan(ConanFile):
     name = "fusion4d"
     version = "0.1"
-    package_type = "application"
+    package_type = "library"
 
     settings = "os", "arch", "compiler", "build_type"
     options = {
@@ -62,10 +63,10 @@ class Fusion4DConan(ConanFile):
     def requirements(self):
         self.requires("opencv/4.13.0")
         self.requires("jsoncpp/1.9.6")
-        self.requires("zlib/1.3.1")
-        self.requires("vxl/1.18.0")
-        self.requires("suitesparse/7.9.0")
-        self.requires("ceres-solver/2.2.0")
+        self.requires("zlib/1.3@camposs/stable")
+        self.requires("vxl/1.18.0@camposs/stable")
+        self.requires("suitesparse/7.9.0@camposs/stable")
+        self.requires("ceres-solver/2.2.0@camposs/stable")
         if self.options.with_demo:
             self.requires("freeglut/3.8.0")
 
@@ -84,3 +85,25 @@ class Fusion4DConan(ConanFile):
         cmake = CMake(self)
         cmake.configure()
         cmake.build()
+
+    def package(self):
+        copy(self, "LICENSE", src=self.source_folder, dst=f"{self.package_folder}/licenses")
+        cmake = CMake(self)
+        cmake.install()
+
+    def package_info(self):
+        self.cpp_info.set_property("cmake_file_name", "Fusion4D")
+        self.cpp_info.set_property("cmake_target_name", "Fusion4D::Fusion4DCore")
+        self.cpp_info.bindirs = ["bin"]
+        self.cpp_info.includedirs = ["include"]
+        self.cpp_info.libdirs = ["lib"]
+        self.cpp_info.libs = [
+            "Fusion4DCore",
+            "FastNonrigidMatching",
+            "NonRigidMatch",
+            "Basics",
+            "CSurface",
+            "CameraView",
+            "Utility",
+            "LibUtility",
+        ]

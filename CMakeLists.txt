@@ -312,9 +312,26 @@ if(FUSION4D_WITH_CORE)
     POSITION_INDEPENDENT_CODE ON
   )
 
-  install(TARGETS Fusion4DCore ARCHIVE DESTINATION lib LIBRARY DESTINATION lib)
   install(DIRECTORY "${CMAKE_CURRENT_SOURCE_DIR}/include/fusion4d_core" DESTINATION include)
 endif()
+
+set(FUSION4D_PACKAGE_TARGETS
+  LibUtility
+  Utility
+  CameraView
+  CSurface
+  Basics
+  NonRigidMatch
+  FastNonrigidMatching
+)
+if(FUSION4D_WITH_CORE)
+  list(APPEND FUSION4D_PACKAGE_TARGETS Fusion4DCore)
+endif()
+install(TARGETS ${FUSION4D_PACKAGE_TARGETS}
+  ARCHIVE DESTINATION lib
+  LIBRARY DESTINATION lib
+  RUNTIME DESTINATION bin
+)
 
 if(FUSION4D_WITH_DEMO)
   find_package(OpenGL REQUIRED)
