@@ -4,8 +4,6 @@
 //===============================================
 #ifndef __VILTOOPENCV_H__
 #define __VILTOOPENCV_H__
-#include <vil/vil_image_view.h>
-#include <vil/vil_save.h>
 #include <vnl/vnl_matrix.h>
 #include <vnl/vnl_matrix.hxx>
 #include "opencv2/opencv.hpp"

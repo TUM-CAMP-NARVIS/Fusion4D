@@ -20,63 +20,92 @@ if(NOT DEFINED CMAKE_CUDA_ARCHITECTURES)
 endif()
 
 set(PEABODY_VOLUME_CUBES_DIM_MAX 50 CACHE STRING "Maximum two-level TSDF volume dimension in coarse cubes")
+option(FUSION4D_ENABLE_CONAN "Resolve third-party dependencies via Conan/CMakeDeps" OFF)
+option(FUSION4D_WITH_CORE "Build the headless Fusion4D core library" ON)
+option(FUSION4D_WITH_DEMO "Build the DeformableFusion demo executable" ON)
+option(FUSION4D_WITH_VISUAL_FEATURE_MATCHING "Build the legacy VXL visual feature matching module" ON)
 
 set(PEABODY_ROOT "${CMAKE_CURRENT_SOURCE_DIR}")
 set(DEFORMABLE_FUSION_DIR "${PEABODY_ROOT}/DeformableFusion")
 set(PEABODY_COMPAT_INCLUDE_DIR "${PEABODY_ROOT}/include/compat")
-
-set(OpenCV_DIR "$ENV{HOME}/opencv/build" CACHE PATH "OpenCV CUDA build directory")
-set(VXL_DIR "${PEABODY_ROOT}/Dependencies/vxl-install/share/vxl/cmake" CACHE PATH "VXLConfig.cmake directory")
+set(FUSION4D_VXL_DIR "" CACHE PATH "Path to the directory containing VXLConfig.cmake")
+if(NOT FUSION4D_VXL_DIR AND DEFINED ENV{VXL_DIR})
+  set(FUSION4D_VXL_DIR "$ENV{VXL_DIR}" CACHE PATH "Path to the directory containing VXLConfig.cmake" FORCE)
+endif()
+if(NOT FUSION4D_VXL_DIR AND EXISTS "${PEABODY_ROOT}/Dependencies/vxl-install/share/vxl/cmake")
+  set(FUSION4D_VXL_DIR "${PEABODY_ROOT}/Dependencies/vxl-install/share/vxl/cmake" CACHE PATH "Path to the directory containing VXLConfig.cmake" FORCE)
+endif()
+if(FUSION4D_VXL_DIR)
+  list(PREPEND CMAKE_PREFIX_PATH "${FUSION4D_VXL_DIR}")
+endif()
 
 find_package(CUDAToolkit REQUIRED)
 find_package(OpenCV REQUIRED)
 find_package(VXL REQUIRED)
-find_package(Ceres REQUIRED)
+if(NOT FUSION4D_VXL_DIR AND DEFINED VXL_DIR AND EXISTS "${VXL_DIR}")
+  set(FUSION4D_VXL_DIR "${VXL_DIR}")
+endif()
+if(FUSION4D_ENABLE_CONAN)
+  find_package(Ceres REQUIRED CONFIG)
+  find_package(jsoncpp REQUIRED CONFIG)
+  find_package(SuiteSparse REQUIRED CONFIG COMPONENTS CHOLMOD SPQR)
+  set(FUSION4D_JSONCPP_TARGET JsonCpp::JsonCpp)
+  set(FUSION4D_SUITESPARSE_LINK_LIBS SuiteSparse::CHOLMOD SuiteSparse::SPQR)
+else()
+  find_package(Ceres REQUIRED)
+  find_package(PkgConfig REQUIRED)
+  pkg_check_modules(JSONCPP REQUIRED jsoncpp)
+  add_library(fusion4d_jsoncpp INTERFACE)
+  target_include_directories(fusion4d_jsoncpp INTERFACE ${JSONCPP_INCLUDE_DIRS})
+  target_link_libraries(fusion4d_jsoncpp INTERFACE ${JSONCPP_LINK_LIBRARIES})
+  set(FUSION4D_JSONCPP_TARGET fusion4d_jsoncpp)
+
+  find_library(CHOLMOD_LIBRARY cholmod REQUIRED)
+  find_library(AMD_LIBRARY amd REQUIRED)
+  find_library(CAMD_LIBRARY camd REQUIRED)
+  find_library(COLAMD_LIBRARY colamd REQUIRED)
+  find_library(CCOLAMD_LIBRARY ccolamd REQUIRED)
+  find_library(SUITESPARSECONFIG_LIBRARY suitesparseconfig REQUIRED)
+  find_library(SPQR_LIBRARY spqr REQUIRED)
+  find_package(BLAS REQUIRED)
+  find_package(LAPACK REQUIRED)
+  set(FUSION4D_SUITESPARSE_LINK_LIBS
+    ${CHOLMOD_LIBRARY}
+    ${AMD_LIBRARY}
+    ${CAMD_LIBRARY}
+    ${COLAMD_LIBRARY}
+    ${CCOLAMD_LIBRARY}
+    ${SUITESPARSECONFIG_LIBRARY}
+    ${SPQR_LIBRARY}
+    ${LAPACK_LIBRARIES}
+    ${BLAS_LIBRARIES}
+  )
+endif()
 find_package(ZLIB REQUIRED)
-find_package(OpenGL REQUIRED)
-find_package(GLUT REQUIRED)
-find_package(PkgConfig REQUIRED)
-pkg_check_modules(JSONCPP REQUIRED jsoncpp)
 
-find_library(CHOLMOD_LIBRARY cholmod REQUIRED)
-find_library(AMD_LIBRARY amd REQUIRED)
-find_library(CAMD_LIBRARY camd REQUIRED)
-find_library(COLAMD_LIBRARY colamd REQUIRED)
-find_library(CCOLAMD_LIBRARY ccolamd REQUIRED)
-find_library(SUITESPARSECONFIG_LIBRARY suitesparseconfig REQUIRED)
-find_library(METIS_LIBRARY NAMES metis libmetis.so.5 PATHS /usr/lib/x86_64-linux-gnu REQUIRED)
-find_package(BLAS REQUIRED)
-find_package(LAPACK REQUIRED)
-
-find_path(SUITESPARSE_INCLUDE_DIR
-  NAMES cholmod.h
-  PATH_SUFFIXES suitesparse
-  REQUIRED
-)
+set(FUSION4D_VXL_ROOT "")
+if(FUSION4D_VXL_DIR)
+  get_filename_component(_fusion4d_vxl_root "${FUSION4D_VXL_DIR}" DIRECTORY)
+  get_filename_component(_fusion4d_vxl_root "${_fusion4d_vxl_root}" DIRECTORY)
+  get_filename_component(_fusion4d_vxl_root "${_fusion4d_vxl_root}" DIRECTORY)
+  set(FUSION4D_VXL_ROOT "${_fusion4d_vxl_root}")
+endif()
+if(NOT FUSION4D_VXL_ROOT)
+  set(FUSION4D_VXL_ROOT "${PEABODY_ROOT}/Dependencies/vxl-install")
+endif()
 
 
 set(VXL_INCLUDE_DIRS
   "${VXL_VCL_INCLUDE_DIRS}"
   "${VXL_CORE_INCLUDE_DIRS}"
-  "${PEABODY_ROOT}/Dependencies/vxl-install/include/vxl/contrib"
-  "${PEABODY_ROOT}/Dependencies/vxl-install/include/vxl/contrib/cul"
-  "${PEABODY_ROOT}/Dependencies/vxl-install/include/vxl/contrib/brl/bbas"
-  "${PEABODY_ROOT}/Dependencies/vxl-install/include/vxl/contrib/brl/bseg"
+  "${FUSION4D_VXL_ROOT}/include/vxl/contrib"
+  "${FUSION4D_VXL_ROOT}/include/vxl/contrib/cul"
+  "${FUSION4D_VXL_ROOT}/include/vxl/contrib/brl/bbas"
+  "${FUSION4D_VXL_ROOT}/include/vxl/contrib/brl/bseg"
   "${VXL_OXL_INCLUDE_DIR}"
 )
 
-set(VXL_CORE_LIBS
-  bundler
-  bapl
-  brip
-  mvl
-  vil_algo
-  mbl
-  #mbl_io
-  GL
-  GLU
-  vidl
-  vpgl_algo
+set(VXL_BASE_LIBS
   vpgl
   vnl_algo
   vnl
@@ -90,6 +119,20 @@ set(VXL_CORE_LIBS
   vpl
   vcl
   v3p_netlib
+)
+
+set(VXL_FEATURE_MATCHING_LIBS
+  bundler
+  bapl
+  brip
+  mvl
+  vil_algo
+  mbl
+  #mbl_io
+  GL
+  GLU
+  vidl
+  vpgl_algo
 )
 
 link_directories("${VXL_LIBRARY_DIR}")
@@ -108,8 +151,6 @@ target_include_directories(project_options INTERFACE
   "${DEFORMABLE_FUSION_DIR}/FusionDemo-MultiView"
   "${VXL_INCLUDE_DIRS}"
   "${OpenCV_INCLUDE_DIRS}"
-  "${JSONCPP_INCLUDE_DIRS}"
-  "${SUITESPARSE_INCLUDE_DIR}"
 )
 target_compile_definitions(project_options INTERFACE
   MCLIB2_CONFIG_INC=<Config.h>
@@ -146,12 +187,12 @@ peabody_static_library(Utility
   DeformableFusion/Utility/utility.cpp
   DeformableFusion/Utility/zlib_compression.cpp
 )
-target_link_libraries(Utility PUBLIC LibUtility ZLIB::ZLIB ${OpenCV_LIBS} ${VXL_CORE_LIBS})
+target_link_libraries(Utility PUBLIC LibUtility ZLIB::ZLIB ${OpenCV_LIBS} ${VXL_BASE_LIBS})
 
 peabody_static_library(CameraView
   DeformableFusion/CameraView/CameraView.cpp
 )
-target_link_libraries(CameraView PUBLIC Utility ${OpenCV_LIBS} ${JSONCPP_LIBRARIES})
+target_link_libraries(CameraView PUBLIC Utility ${OpenCV_LIBS} ${FUSION4D_JSONCPP_TARGET})
 
 peabody_static_library(CSurface
   DeformableFusion/CSurface/CIsoSurface.cpp
@@ -159,9 +200,9 @@ peabody_static_library(CSurface
   DeformableFusion/CSurface/ply.cpp
   DeformableFusion/CSurface/Vectors.cpp
 )
-target_link_libraries(CSurface PUBLIC Utility CameraView OpenGL::GL GLUT::GLUT)
+target_link_libraries(CSurface PUBLIC Utility CameraView)
 
-peabody_static_library(Basics
+set(FUSION4D_BASICS_SOURCES
   DeformableFusion/Basics/basic_geometry.cpp
   DeformableFusion/Basics/basic_structure.cpp
   DeformableFusion/Basics/DDF.cpp
@@ -174,9 +215,18 @@ peabody_static_library(Basics
   DeformableFusion/Basics/stdafx.cpp
   DeformableFusion/Basics/track_extraction_basic.cpp
   DeformableFusion/Basics/TSDF.cpp
-  DeformableFusion/Basics/visual_feature_matching.cpp
 )
-target_link_libraries(Basics PUBLIC Utility CameraView CSurface ZLIB::ZLIB ${OpenCV_LIBS} ${VXL_CORE_LIBS})
+if(FUSION4D_WITH_VISUAL_FEATURE_MATCHING)
+  list(APPEND FUSION4D_BASICS_SOURCES
+    DeformableFusion/Basics/visual_feature_matching.cpp
+  )
+endif()
+
+peabody_static_library(Basics ${FUSION4D_BASICS_SOURCES})
+target_link_libraries(Basics PUBLIC Utility CameraView CSurface ZLIB::ZLIB ${OpenCV_LIBS} ${VXL_BASE_LIBS})
+if(FUSION4D_WITH_VISUAL_FEATURE_MATCHING)
+  target_link_libraries(Basics PUBLIC ${VXL_FEATURE_MATCHING_LIBS})
+endif()
 
 peabody_static_library(NonRigidMatch
   DeformableFusion/NonRigidMatch/affines_nonrigid_pw_opt.cpp
@@ -188,7 +238,7 @@ peabody_static_library(NonRigidMatch
   DeformableFusion/NonRigidMatch/nonrigid_matching_surface.cpp
   DeformableFusion/NonRigidMatch/surface_geodesic_distance.cpp
 )
-target_link_libraries(NonRigidMatch PUBLIC Utility CameraView CSurface Basics Ceres::ceres ${OpenCV_LIBS} ${VXL_CORE_LIBS})
+target_link_libraries(NonRigidMatch PUBLIC Utility CameraView CSurface Basics Ceres::ceres ${OpenCV_LIBS} ${VXL_BASE_LIBS})
 
 peabody_static_library(FastNonrigidMatching
   DeformableFusion/FastNonrigidMatching/CMotionFieldEstimationF2F.cpp
@@ -236,68 +286,87 @@ set_target_properties(FastNonrigidMatching PROPERTIES
 target_link_libraries(FastNonrigidMatching PUBLIC
   NonRigidMatch Utility CameraView CSurface Basics
   CUDA::cudart CUDA::cusolver CUDA::cublas
-  ${CHOLMOD_LIBRARY} ${AMD_LIBRARY} ${CAMD_LIBRARY} ${COLAMD_LIBRARY} ${CCOLAMD_LIBRARY}
-  ${SUITESPARSECONFIG_LIBRARY} ${METIS_LIBRARY}
-  ${LAPACK_LIBRARIES} ${BLAS_LIBRARIES}
-  ${OpenCV_LIBS} ${VXL_CORE_LIBS}
+  ${FUSION4D_SUITESPARSE_LINK_LIBS}
+  ${OpenCV_LIBS} ${VXL_BASE_LIBS}
 )
 get_target_property(FAST_MATCH_OBJECTS FastNonrigidMatching SOURCES)
 
-add_executable(DeformableFusionDemo
-  DeformableFusion/DeformableFusionDemo/DeformableFusionDemo.cpp
-  DeformableFusion/DeformableFusionDemo/Live3DViewer.cpp
-  DeformableFusion/DeformableFusionDemo/SurfacePreview.cpp
-  DeformableFusion/FusionDemo-MultiView/FusionConfig.cpp
-  DeformableFusion/FusionDemo-MultiView/GlobalDataStatic.cpp
-  ${FAST_MATCH_OBJECTS}
-)
+if(FUSION4D_WITH_CORE)
+  add_library(Fusion4DCore STATIC
+    DeformableFusion/FusionDemo-MultiView/FusionConfig.cpp
+    DeformableFusion/FusionDemo-MultiView/FusionGlobals.cpp
+    DeformableFusion/FusionDemo-MultiView/GlobalDataStatic.cpp
+    src/fusion4d_core.cpp
+  )
 
-# Cruciale: Diciamo a CMake che il linker finale deve essere CUDA (NVCC) 
-# e abilitiamo la compilazione separata sui sorgenti aggregati.
-set_target_properties(DeformableFusionDemo PROPERTIES
-  LINKER_LANGUAGE CUDA
-  CUDA_SEPARABLE_COMPILATION ON
-  CUDA_RESOLVE_DEVICE_SYMBOLS ON
-  POSITION_INDEPENDENT_CODE ON
-)
+  target_link_libraries(Fusion4DCore PUBLIC
+    FastNonrigidMatching
+    ${FUSION4D_JSONCPP_TARGET}
+  )
 
-target_compile_options(DeformableFusionDemo PRIVATE
-  $<$<COMPILE_LANGUAGE:CUDA>:-Xcompiler=-fPIC>
-)
+  target_include_directories(Fusion4DCore PUBLIC
+    "${CMAKE_CURRENT_SOURCE_DIR}/include"
+  )
 
-# Garantisce che l'eseguibile trovi gli header interni di FastNonrigidMatching
-target_include_directories(DeformableFusionDemo PRIVATE
-  ${CMAKE_CURRENT_SOURCE_DIR}/DeformableFusion/FastNonrigidMatching
-)
+  set_target_properties(Fusion4DCore PROPERTIES
+    POSITION_INDEPENDENT_CODE ON
+  )
 
-# Configurazione del Linker con gestione dei cicli di dipendenze C++
-target_link_libraries(DeformableFusionDemo PRIVATE
-  # Il gruppo risolve ricorsivamente i link incrociati (es. cameraSpace2worldSpace in CameraView/Basics)
-  -Wl,--start-group
-  NonRigidMatch
-  CameraView
-  Basics
-  CSurface
-  Utility
-  LibUtility
-  -Wl,--end-group
+  install(TARGETS Fusion4DCore ARCHIVE DESTINATION lib LIBRARY DESTINATION lib)
+  install(DIRECTORY "${CMAKE_CURRENT_SOURCE_DIR}/include/fusion4d_core" DESTINATION include)
+endif()
 
-  # Librerie di terze parti e di sistema
-  ${CHOLMOD_LIBRARY}
-  ${AMD_LIBRARY}
-  ${CAMD_LIBRARY}
-  ${COLAMD_LIBRARY}
-  ${CCOLAMD_LIBRARY}
-  ${SUITESPARSECONFIG_LIBRARY}
-  ${METIS_LIBRARY}
-  Ceres::ceres
-  CUDA::cudart CUDA::cusolver CUDA::cublas
-  OpenGL::GL
-  OpenGL::GLU
-  GLUT::GLUT
-  ZLIB::ZLIB
-  ${OpenCV_LIBS}
-  ${JSONCPP_LIBRARIES}
-  ${VXL_CORE_LIBS}
-)
-install(TARGETS DeformableFusionDemo RUNTIME DESTINATION bin)
+if(FUSION4D_WITH_DEMO)
+  find_package(OpenGL REQUIRED)
+  find_package(GLUT REQUIRED)
+
+  add_executable(DeformableFusionDemo
+    DeformableFusion/DeformableFusionDemo/DeformableFusionDemo.cpp
+    DeformableFusion/DeformableFusionDemo/Live3DViewer.cpp
+    DeformableFusion/DeformableFusionDemo/SurfacePreview.cpp
+    DeformableFusion/FusionDemo-MultiView/FusionConfig.cpp
+    DeformableFusion/FusionDemo-MultiView/FusionGlobals.cpp
+    DeformableFusion/FusionDemo-MultiView/GlobalDataStatic.cpp
+    ${FAST_MATCH_OBJECTS}
+  )
+
+  set_target_properties(DeformableFusionDemo PROPERTIES
+    LINKER_LANGUAGE CUDA
+    CUDA_SEPARABLE_COMPILATION ON
+    CUDA_RESOLVE_DEVICE_SYMBOLS ON
+    POSITION_INDEPENDENT_CODE ON
+  )
+
+  target_compile_options(DeformableFusionDemo PRIVATE
+    $<$<COMPILE_LANGUAGE:CUDA>:-Xcompiler=-fPIC>
+  )
+
+  target_include_directories(DeformableFusionDemo PRIVATE
+    ${CMAKE_CURRENT_SOURCE_DIR}/DeformableFusion/FastNonrigidMatching
+  )
+
+  target_link_libraries(DeformableFusionDemo PRIVATE
+    -Wl,--start-group
+    NonRigidMatch
+    CameraView
+    Basics
+    CSurface
+    Utility
+    LibUtility
+    -Wl,--end-group
+    ${FUSION4D_SUITESPARSE_LINK_LIBS}
+    Ceres::ceres
+    CUDA::cudart CUDA::cusolver CUDA::cublas
+    OpenGL::GL
+    OpenGL::GLU
+    GLUT::GLUT
+    ZLIB::ZLIB
+    ${OpenCV_LIBS}
+    ${FUSION4D_JSONCPP_TARGET}
+    ${VXL_BASE_LIBS}
+  )
+  if(FUSION4D_WITH_VISUAL_FEATURE_MATCHING)
+    target_link_libraries(DeformableFusionDemo PRIVATE ${VXL_FEATURE_MATCHING_LIBS})
+  endif()
+  install(TARGETS DeformableFusionDemo RUNTIME DESTINATION bin)
+endif()

@@ -81,6 +81,11 @@ public:
 		problem.jtj_helper_cuda.setup_cameras(cams_d);
 	}
 
+	void read_current_surface(CSurface<float>& surface)
+	{
+		vol_fusion.readout_surface(surface);
+	}
+
 	EDNodesParasGPU* internel_EDNodesParasGPU_for_init(){
 		return &ed_nodes_paras_init;
 	}

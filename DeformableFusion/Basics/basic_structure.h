@@ -5,9 +5,6 @@
 
 #include "UtilVnlMatrix.h"
 #include <vector>
-#include <vil/vil_image_view.h>
-#include <vil/vil_save.h>
-#include <vil/vil_load.h>
 #include "CameraView.h"
 #include "BoundingBox3D.h"
 #include "CSurface.h"

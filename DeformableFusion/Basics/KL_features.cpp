@@ -2,6 +2,7 @@
 // Licensed under the MIT license.
 #include "stdafx.h"
 #include "KL_features.h"
+#include <opencv2/video/tracking.hpp>
 
 template <class T>
 bool drawCornersOnImage(cv::Mat& img, vnl_matrix<T> const& corners, cv::Scalar color)
@@ -453,4 +454,3 @@ bool draw_corner_tracks_and_save( std::vector<cv::Mat> const& imgs,
 
 	return true;
 }
-

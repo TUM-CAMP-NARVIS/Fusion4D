@@ -3,6 +3,11 @@ This is an unofficial Linux port of the Fusion4D paper implementation you can fi
 
 This builds the Linux library and produces a demo executable that allows you to do non-rigid reconstruction from RGBD sequences on Linux.
 
+The tree now also exposes a headless `Fusion4DCore` library target intended for
+embedding into external applications such as Artekmed. The core target wraps
+the existing `CMotionFieldEstimationF2F` and `Fusion4DKeyFrames` pipeline behind
+an explicit session API in [`include/fusion4d_core/fusion4d_core.h`](include/fusion4d_core/fusion4d_core.h).
+
 ## Results on VolumeDeform dataset
 
 <table>
@@ -27,7 +32,89 @@ This builds the Linux library and produces a demo executable that allows you to 
 
 </table>
 
-## 1. Install System Packages
+## 1. Local Conan setup
+
+Create a local Conan tool env if your host does not already ship Conan 2:
+
+```bash
+python3 -m venv $HOME/.venvs/conan2
+$HOME/.venvs/conan2/bin/pip install "conan>=2.3,<3"
+export PATH="$HOME/.venvs/conan2/bin:$PATH"
+```
+
+Detect a profile and export the three local recipes Fusion4D needs beyond Conan Center:
+
+```bash
+conan profile detect --force
+conan create thirdparty/conan/vxl -s compiler.cppstd=17
+conan create thirdparty/conan/suitesparse -s compiler.cppstd=17
+conan create thirdparty/conan/ceres-solver -s compiler.cppstd=17
+```
+
+The bundled VXL recipe pins `v1.18.0` from upstream and packages the original
+`VXLConfig.cmake`, so `find_package(VXL)` continues to work without a manual
+`VXL_DIR` override in the Conan path.
+
+## 2. Conan-driven configure
+
+From the repository root:
+
+```bash
+conan install . \
+  --output-folder=build/Release \
+  --build=missing \
+  -s build_type=Release \
+  -s compiler.cppstd=17
+
+cmake --preset conan-release
+```
+
+The Conan path disables the legacy VXL `bapl`-based visual feature matching
+module by default. Re-enable it only if you also provide a VXL build that
+exports the `bapl` / `bundler` / `mvl` contrib stack.
+
+If you prefer to skip the demo executable during packaging experiments:
+
+```bash
+conan install . \
+  --output-folder=build/Release \
+  --build=missing \
+  -s build_type=Release \
+  -s compiler.cppstd=17 \
+  -o '&:with_demo=False'
+```
+
+This configure path still builds `Fusion4DCore`. To disable the legacy viewer
+while keeping the headless API enabled in raw CMake mode:
+
+```bash
+cmake -S . -B build-core \
+  -DCMAKE_BUILD_TYPE=Release \
+  -DFUSION4D_WITH_DEMO=OFF \
+  -DFUSION4D_WITH_CORE=ON \
+  -DFUSION4D_VXL_DIR=$HOME/opt/vxl-1.18.0/share/vxl/cmake
+```
+
+## 3. Build
+
+```bash
+cmake --build build/Release --parallel
+```
+
+## 4. Legacy/manual path
+
+The old host-managed path is still available for debugging by configuring CMake directly, but it no longer requires hardcoded `OpenCV_DIR` or source-local SuiteSparse/METIS lookups:
+
+```bash
+cmake -S . -B build-linux \
+  -DCMAKE_BUILD_TYPE=Release \
+  -DCMAKE_CUDA_ARCHITECTURES=75 \
+  -DFUSION4D_VXL_DIR=$HOME/opt/vxl-1.18.0/share/vxl/cmake
+```
+
+## 5. Historical manual package list
+
+The pre-Conan Linux instructions are retained here for reference when debugging a non-Conan host:
 
 - Install CUDA Toolkit (recommended v.12.6)
 - Make sure `nvcc` is on `PATH` before
@@ -59,7 +146,7 @@ https://gist.github.com/Hydran00/a5b8890a01127c222d40102e28e7fc7e
 
 
 
-## 3. Configure
+## 6. Configure
 
 From the repository root:
 
@@ -74,13 +161,13 @@ configuring:
 
 ```bash
 -DOpenCV_DIR=/path/to/opencv/build
--DVXL_DIR=/path/to/vxl-install/share/vxl/cmake
+-DFUSION4D_VXL_DIR=/path/to/vxl-install/share/vxl/cmake
 ```
 
 Adjust `CMAKE_CUDA_ARCHITECTURES` for your GPU if needed. For example, use
 `86` for many RTX 30-series cards.
 
-## 4. Build
+## 7. Build
 
 ```bash
 cmake --build build-linux --target DeformableFusionDemo -j
@@ -93,7 +180,7 @@ cmake -E env CCACHE_DIR=/tmp/ccache CCACHE_TEMPDIR=/tmp \
   cmake --build build-linux --target DeformableFusionDemo -j
 ```
 
-## 5. Run Upperbody Demo
+## 8. Run Upperbody Demo
 - Download VolumeDeform Dataset from [here](https://www.lgdv.tf.fau.de/publications/volumedeform-real-time-volumetric-non-rigid-reconstruction/) and put it in `Dataset/`
 
 From `build-linux`:
@@ -121,13 +208,16 @@ From `build-linux`:
 The application writes F2F outputs to `../Dataset/outputs/f2f` and Fusion4D
 outputs to `../Dataset/outputs/fusion4d`.
 
-## 6. Notes
+## 9. Notes
 
 - Use `--viewer3d` only on a machine/session with OpenGL display access.
 - Use `--preview` only when OpenCV can open UI windows.
 - The default `PEABODY_VOLUME_CUBES_DIM_MAX=50` is sized for the upperbody
   demo and avoids the large fixed TSDF allocation that can cause CUDA
   out-of-memory errors.
+- `Fusion4DCore` is the preferred integration surface for headless callers.
+  Its frame inputs are non-owning views and its mesh readback APIs return owned
+  CPU snapshots so transport/application code can keep ownership explicit.
 
 
 ## References
