@@ -46,10 +46,9 @@ Detect a profile and export the three local recipes Fusion4D needs beyond Conan 
 
 ```bash
 conan profile detect --force
-conan create thirdparty/conan/vxl -s compiler.cppstd=17
-conan create thirdparty/conan/suitesparse -s compiler.cppstd=17
-conan create thirdparty/conan/ceres-solver -s compiler.cppstd=17
 ```
+
+The conan recipes are hosted at https://github.com/TUM-CONAN
 
 The bundled VXL recipe pins `v1.18.0` from upstream and packages the original
 `VXLConfig.cmake`, so `find_package(VXL)` continues to work without a manual
